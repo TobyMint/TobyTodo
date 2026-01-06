@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TobyToDo - Login</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        .auth-container {
+            max-width: 400px;
+            margin: 100px auto;
+            background: var(--surface-color);
+            padding: 40px;
+            border-radius: var(--border-radius);
+            backdrop-filter: var(--glass-blur);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            text-align: center;
+        }
+        .auth-form {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        .auth-input {
+            padding: 12px;
+            border-radius: 8px;
+            border: 1px solid rgba(255,255,255,0.1);
+            background: rgba(255,255,255,0.05);
+            color: #fff;
+            font-size: 1rem;
+        }
+        .auth-btn {
+            padding: 12px;
+            border-radius: 8px;
+            border: none;
+            background: var(--primary-color);
+            color: #000;
+            font-weight: bold;
+            cursor: pointer;
+            transition: filter 0.2s;
+        }
+        .auth-btn:hover {
+            filter: brightness(1.1);
+        }
+        .switch-mode {
+            margin-top: 20px;
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+        }
+        .switch-mode a {
+            color: var(--secondary-color);
+            cursor: pointer;
+            text-decoration: underline;
+        }
+        .error-msg {
+            color: var(--danger-color);
+            font-size: 0.9rem;
+            min-height: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>TobyToDo</h1>
+        </header>
+        
+        <div class="auth-container">
+            <h2 id="form-title" style="margin-bottom: 20px;">Login</h2>
+            <div id="error-msg" class="error-msg"></div>
+            <form id="auth-form" class="auth-form">
+                <input type="text" id="username" class="auth-input" placeholder="Username" required>
+                <input type="password" id="password" class="auth-input" placeholder="Password" required>
+                <button type="submit" class="auth-btn" id="submit-btn">Login</button>
+            </form>
+            <div class="switch-mode">
+                <span id="switch-text">Don't have an account? </span>
+                <a id="switch-btn">Register</a>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const form = document.getElementById('auth-form');
+        const switchBtn = document.getElementById('switch-btn');
+        const submitBtn = document.getElementById('submit-btn');
+        const formTitle = document.getElementById('form-title');
+        const switchText = document.getElementById('switch-text');
+        const errorMsg = document.getElementById('error-msg');
+        
+        let isLogin = true;
+
+        switchBtn.addEventListener('click', () => {
+            isLogin = !isLogin;
+            if (isLogin) {
+                formTitle.textContent = 'Login';
+                submitBtn.textContent = 'Login';
+                switchText.textContent = "Don't have an account? ";
+                switchBtn.textContent = 'Register';
+            } else {
+                formTitle.textContent = 'Register';
+                submitBtn.textContent = 'Register';
+                switchText.textContent = "Already have an account? ";
+                switchBtn.textContent = 'Login';
+            }
+            errorMsg.textContent = '';
+        });
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            const endpoint = isLogin ? '/api/login' : '/api/register';
+
+            try {
+                const response = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+
+                if (response.ok) {
+                    window.location.href = '/';
+                } else {
+                    const text = await response.text();
+                    errorMsg.textContent = text || 'Authentication failed';
+                }
+            } catch (error) {
+                errorMsg.textContent = 'Network error';
+            }
+        });
+    </script>
+</body>
+</html>

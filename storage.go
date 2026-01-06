@@ -2,13 +2,15 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
+	"path/filepath"
 	"sort"
 	"sync"
 	"time"
 )
 
-const DataFile = "data.json"
+const DataDir = "data"
 
 type Todo struct {
 	ID          string    `json:"id"`
@@ -20,23 +22,49 @@ type Todo struct {
 }
 
 type Storage struct {
-	mu    sync.Mutex
-	Todos []Todo
+	mu       sync.Mutex
+	FilePath string
+	Todos    []Todo
 }
 
-func NewStorage() *Storage {
-	s := &Storage{
-		Todos: []Todo{},
+type StorageManager struct {
+	mu       sync.Mutex
+	Storages map[string]*Storage
+}
+
+func NewStorageManager() *StorageManager {
+	return &StorageManager{
+		Storages: make(map[string]*Storage),
 	}
-	s.Load()
-	return s
+}
+
+func (sm *StorageManager) GetStorage(username string) (*Storage, error) {
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+
+	if s, exists := sm.Storages[username]; exists {
+		return s, nil
+	}
+
+	filePath := filepath.Join(DataDir, fmt.Sprintf("%s_todos.json", username))
+	s := &Storage{
+		FilePath: filePath,
+		Todos:    []Todo{},
+	}
+
+	if err := s.Load(); err != nil {
+		return nil, err
+	}
+
+	sm.Storages[username] = s
+	return s, nil
 }
 
 func (s *Storage) Load() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	data, err := os.ReadFile(DataFile)
+	data, err := os.ReadFile(s.FilePath)
 	if os.IsNotExist(err) {
 		s.Todos = []Todo{}
 		return nil
@@ -57,7 +85,7 @@ func (s *Storage) Save() error {
 		return err
 	}
 
-	return os.WriteFile(DataFile, data, 0644)
+	return os.WriteFile(s.FilePath, data, 0644)
 }
 
 func (s *Storage) GetAll() []Todo {

@@ -8,10 +8,12 @@ import (
 	"time"
 )
 
-var store *Storage
-
-func init() {
-	store = NewStorage()
+func getUserStorage(r *http.Request) (*Storage, error) {
+	username, ok := r.Context().Value(UserContextKey).(string)
+	if !ok || username == "" {
+		return nil, fmt.Errorf("unauthorized")
+	}
+	return storageManager.GetStorage(username)
 }
 
 func enableCors(w *http.ResponseWriter) {
@@ -23,6 +25,12 @@ func enableCors(w *http.ResponseWriter) {
 func HandleTodos(w http.ResponseWriter, r *http.Request) {
 	enableCors(&w)
 	if r.Method == "OPTIONS" {
+		return
+	}
+
+	store, err := getUserStorage(r)
+	if err != nil {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 
@@ -40,6 +48,9 @@ func HandleTodos(w http.ResponseWriter, r *http.Request) {
 		if todo.ID == "" {
 			todo.ID = fmt.Sprintf("%d", time.Now().UnixNano())
 		}
+		if todo.CreatedAt.IsZero() {
+			todo.CreatedAt = time.Now()
+		}
 		store.Add(todo)
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(todo)
@@ -51,6 +62,12 @@ func HandleTodos(w http.ResponseWriter, r *http.Request) {
 func HandleTodoItem(w http.ResponseWriter, r *http.Request) {
 	enableCors(&w)
 	if r.Method == "OPTIONS" {
+		return
+	}
+
+	store, err := getUserStorage(r)
+	if err != nil {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 
@@ -87,6 +104,12 @@ func HandleTodoItem(w http.ResponseWriter, r *http.Request) {
 func HandleReorder(w http.ResponseWriter, r *http.Request) {
 	enableCors(&w)
 	if r.Method == "OPTIONS" {
+		return
+	}
+
+	store, err := getUserStorage(r)
+	if err != nil {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 

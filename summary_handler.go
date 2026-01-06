@@ -49,6 +49,12 @@ func SummaryHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	store, err := getUserStorage(r)
+	if err != nil {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
 	todos := store.GetCompletedTodosByPeriod(period)
 	if len(todos) == 0 {
 		json.NewEncoder(w).Encode(SummaryResponse{Summary: "No completed tasks found for this period."})
