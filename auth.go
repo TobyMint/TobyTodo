@@ -136,12 +136,25 @@ type contextKey string
 
 const UserContextKey contextKey = "user"
 
+// isPublicPath checks if the path is accessible without authentication
+func isPublicPath(path string) bool {
+	publicPaths := map[string]bool{
+		"/login.html":    true,
+		"/register.html": true,
+		"/style.css":     true,
+		"/app.js":        true,
+		"/api/login":     true,
+		"/api/register":  true,
+	}
+	return publicPaths[path]
+}
+
 // Middleware
 func AuthMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c, err := r.Cookie(CookieName)
 		if err != nil {
-			if r.URL.Path == "/login.html" || r.URL.Path == "/register.html" || r.URL.Path == "/style.css" || r.URL.Path == "/app.js" || r.URL.Path == "/api/login" || r.URL.Path == "/api/register" {
+			if isPublicPath(r.URL.Path) {
 				next.ServeHTTP(w, r)
 				return
 			}
@@ -151,7 +164,16 @@ func AuthMiddleware(next http.Handler) http.Handler {
 
 		username, ok := sessionManager.GetUsername(c.Value)
 		if !ok {
-			if r.URL.Path == "/api/login" || r.URL.Path == "/api/register" {
+			// Cookie is invalid (e.g. server restarted), clear it
+			http.SetCookie(w, &http.Cookie{
+				Name:    CookieName,
+				Value:   "",
+				Path:    "/",
+				Expires: time.Unix(0, 0),
+				MaxAge:  -1,
+			})
+
+			if isPublicPath(r.URL.Path) {
 				next.ServeHTTP(w, r)
 				return
 			}
