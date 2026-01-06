@@ -284,25 +284,63 @@ function hideDeleteModal() {
 }
 
 // Summary Functions
-async function getSummary(period) {
+let currentSummaryPeriod = null;
+
+function getSummary(period) {
+    currentSummaryPeriod = period;
     const modal = document.getElementById('summary-modal');
     const contentDiv = document.getElementById('summary-content');
+    const actionsDiv = modal.querySelector('.modal-actions');
+    const title = modal.querySelector('h3');
+
+    title.textContent = '✨ AI 总结确认';
+    contentDiv.innerHTML = `
+        <div style="text-align: center; padding: 10px 0;">
+            <p style="margin-bottom: 10px; font-size: 1.1em;">即将使用 <strong>豆包大模型</strong> 为您总结 <strong>${period}</strong> 的任务完成情况。</p>
+            <p style="color: rgba(255,255,255,0.5); font-size: 0.9em;">生成过程可能需要几秒钟，请耐心等待。</p>
+        </div>
+    `;
     
+    actionsDiv.innerHTML = `
+        <button class="btn btn-secondary" onclick="closeSummaryModal()">取消</button>
+        <button class="btn btn-primary" onclick="startSummaryGeneration()">确认开始</button>
+    `;
+
     modal.classList.add('show');
-    contentDiv.textContent = 'Generating summary with AI... Please wait...';
+}
+
+async function startSummaryGeneration() {
+    if (!currentSummaryPeriod) return;
+
+    const modal = document.getElementById('summary-modal');
+    const contentDiv = document.getElementById('summary-content');
+    const actionsDiv = modal.querySelector('.modal-actions');
+    const title = modal.querySelector('h3');
+
+    title.textContent = 'AI Summary';
+    contentDiv.innerHTML = '<div style="text-align: center; padding: 20px;">正在生成总结... 🤖<br><span style="font-size:0.8em; color:rgba(255,255,255,0.5);">(Thinking...)</span></div>';
+    
+    // Show disabled button while processing
+    actionsDiv.innerHTML = `
+        <button class="btn btn-secondary" style="opacity: 0.5; cursor: not-allowed;">生成中...</button>
+    `;
 
     try {
-        const response = await fetch(`/api/summary?period=${period}`);
+        const response = await fetch(`/api/summary?period=${currentSummaryPeriod}`);
         const data = await response.json();
         
         if (data.summary) {
             contentDiv.innerHTML = marked.parse(data.summary);
         } else {
-            contentDiv.textContent = 'Failed to generate summary.';
+            contentDiv.textContent = '未能生成总结，请重试。';
         }
     } catch (error) {
         console.error('Error:', error);
-        contentDiv.textContent = 'Error fetching summary. Please try again.';
+        contentDiv.textContent = '获取总结失败，请检查网络连接。';
+    } finally {
+        actionsDiv.innerHTML = `
+            <button class="btn btn-primary" onclick="closeSummaryModal()">关闭</button>
+        `;
     }
 }
 
