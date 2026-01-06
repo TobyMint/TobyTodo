@@ -159,6 +159,14 @@ func AuthMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
+		// Refresh session cookie
+		http.SetCookie(w, &http.Cookie{
+			Name:    CookieName,
+			Value:   c.Value,
+			Expires: time.Now().Add(24 * time.Hour),
+			Path:    "/",
+		})
+
 		ctx := context.WithValue(r.Context(), UserContextKey, username)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
