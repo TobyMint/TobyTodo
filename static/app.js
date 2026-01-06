@@ -1,0 +1,357 @@
+const API_URL = '/api/todos';
+
+document.addEventListener('DOMContentLoaded', () => {
+    fetchTodos();
+    setupEventListeners();
+});
+
+let todos = [];
+let todoIdToDelete = null;
+
+async function fetchTodos() {
+    try {
+        const response = await fetch(API_URL);
+        if (!response.ok) throw new Error('Failed to fetch todos');
+        todos = await response.json();
+        renderTodos();
+    } catch (error) {
+        console.error('Error:', error);
+    }
+}
+
+function renderTodos() {
+    const pendingList = document.getElementById('pending-list');
+    const completedList = document.getElementById('completed-list');
+    
+    pendingList.innerHTML = '';
+    completedList.innerHTML = '';
+
+    const pending = todos.filter(t => !t.completed);
+    pending.sort((a, b) => a.order - b.order);
+    
+    const completed = todos.filter(t => t.completed);
+
+    document.getElementById('pending-count').textContent = pending.length;
+    document.getElementById('completed-count').textContent = completed.length;
+
+    // Render Pending
+    pending.forEach(todo => {
+        pendingList.appendChild(createTodoElement(todo));
+    });
+
+    // Render Completed (Grouped)
+    renderCompletedGroups(completed, completedList);
+}
+
+function renderCompletedGroups(completedTodos, container) {
+    if (completedTodos.length === 0) return;
+
+    // Groups: Today, This Week, This Month, Older
+    const groups = {
+        today: [],
+        week: [],
+        month: [],
+        older: []
+    };
+
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    
+    // Calculate start of week (Monday)
+    const day = now.getDay() || 7; // Get current day number, converting Sun(0) to 7
+    if (day !== 1) now.setHours(-24 * (day - 1)); // Set to Monday
+    const weekStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+    const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+
+    completedTodos.forEach(todo => {
+        // Handle completed_at being potentially empty/null (backward compatibility)
+        // If empty, treat as "Older" or maybe "Today" if we just did it? 
+        // Backend handles filling it on update. Old data might be empty.
+        // Let's treat empty as "Older" or "Unknown"
+        if (!todo.completed_at || todo.completed_at === "0001-01-01T00:00:00Z") {
+            groups.older.push(todo);
+            return;
+        }
+
+        const date = new Date(todo.completed_at);
+        
+        if (date >= todayStart) {
+            groups.today.push(todo);
+        } else if (date >= weekStart) {
+            groups.week.push(todo);
+        } else if (date >= monthStart) {
+            groups.month.push(todo);
+        } else {
+            groups.older.push(todo);
+        }
+    });
+
+    // Sort within groups by completion time desc
+    const sortFn = (a, b) => new Date(b.completed_at) - new Date(a.completed_at);
+    
+    // Render Groups
+    renderGroup(container, "Today", groups.today.sort(sortFn));
+    renderGroup(container, "This Week", groups.week.sort(sortFn));
+    renderGroup(container, "This Month", groups.month.sort(sortFn));
+    renderGroup(container, "Older", groups.older.sort(sortFn));
+}
+
+function renderGroup(container, title, items) {
+    if (items.length === 0) return;
+
+    const groupDiv = document.createElement('div');
+    groupDiv.className = 'completed-group';
+    
+    const titleEl = document.createElement('div');
+    titleEl.className = 'group-title';
+    titleEl.textContent = title;
+    groupDiv.appendChild(titleEl);
+
+    const ul = document.createElement('ul');
+    ul.className = 'todo-list';
+    
+    items.forEach(todo => {
+        ul.appendChild(createTodoElement(todo));
+    });
+    
+    groupDiv.appendChild(ul);
+    container.appendChild(groupDiv);
+}
+
+function createTodoElement(todo) {
+    const li = document.createElement('li');
+    li.className = `todo-item ${todo.completed ? 'completed' : ''}`;
+    li.dataset.id = todo.id;
+    
+    if (!todo.completed) {
+        li.draggable = true;
+        li.addEventListener('dragstart', handleDragStart);
+        li.addEventListener('dragend', handleDragEnd);
+    }
+
+    const createdDate = new Date(todo.created_at).toLocaleDateString();
+    // Only show completed time if completed
+    let metaText = `Created: ${createdDate}`;
+    if (todo.completed && todo.completed_at && todo.completed_at !== "0001-01-01T00:00:00Z") {
+        const completedDate = new Date(todo.completed_at).toLocaleString();
+        metaText += ` • Done: ${completedDate}`;
+    }
+
+    li.innerHTML = `
+        <div class="checkbox"></div>
+        <div class="todo-content-wrapper">
+            <div class="content">${escapeHtml(todo.content)}</div>
+            <div class="todo-meta">${metaText}</div>
+        </div>
+        <button class="delete-btn">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+        </button>
+    `;
+
+    li.querySelector('.checkbox').addEventListener('click', (e) => {
+        e.stopPropagation(); // Prevent drag triggering if any
+        toggleTodo(todo);
+    });
+    li.querySelector('.delete-btn').addEventListener('click', (e) => {
+        e.stopPropagation();
+        deleteTodo(todo.id);
+    });
+
+    return li;
+}
+
+function setupEventListeners() {
+    const addBtn = document.getElementById('add-btn');
+    const input = document.getElementById('new-todo');
+
+    addBtn.addEventListener('click', () => handleAdd());
+    input.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') handleAdd();
+    });
+
+    const pendingList = document.getElementById('pending-list');
+    pendingList.addEventListener('dragover', handleDragOver);
+
+    // Modal Event Listeners
+    const modal = document.getElementById('confirm-modal');
+    const cancelBtn = document.getElementById('cancel-delete');
+    const confirmBtn = document.getElementById('confirm-delete');
+
+    cancelBtn.addEventListener('click', hideDeleteModal);
+    confirmBtn.addEventListener('click', confirmDelete);
+    
+    // Close modal if clicked outside
+    window.addEventListener('click', (e) => {
+        if (e.target === modal) {
+            hideDeleteModal();
+        }
+    });
+}
+
+function showDeleteModal(id) {
+    todoIdToDelete = id;
+    const modal = document.getElementById('confirm-modal');
+    modal.classList.add('show');
+}
+
+function hideDeleteModal() {
+    todoIdToDelete = null;
+    const modal = document.getElementById('confirm-modal');
+    modal.classList.remove('show');
+}
+
+async function confirmDelete() {
+    if (!todoIdToDelete) return;
+    
+    const id = todoIdToDelete;
+    hideDeleteModal();
+
+    try {
+        todos = todos.filter(t => t.id !== id);
+        renderTodos();
+
+        const response = await fetch(`${API_URL}/${id}`, {
+            method: 'DELETE'
+        });
+
+        if (!response.ok) throw new Error('Failed to delete todo');
+    } catch (error) {
+        console.error('Error:', error);
+        await fetchTodos();
+    }
+}
+
+async function handleAdd() {
+    const input = document.getElementById('new-todo');
+    const content = input.value.trim();
+    if (!content) return;
+
+    try {
+        const response = await fetch(API_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                content: content,
+                completed: false,
+                order: todos.length > 0 ? Math.max(...todos.map(t => t.order)) + 1 : 0
+            })
+        });
+
+        if (!response.ok) throw new Error('Failed to add todo');
+        
+        input.value = '';
+        await fetchTodos();
+    } catch (error) {
+        console.error('Error:', error);
+    }
+}
+
+async function toggleTodo(todo) {
+    try {
+        // For optimistic update, we need to guess the new state.
+        // But for time grouping, we need the server time or generate local time.
+        // Let's just generate local time for optimistic update.
+        const now = new Date().toISOString();
+        const updatedTodo = { 
+            ...todo, 
+            completed: !todo.completed,
+            completed_at: !todo.completed ? now : null 
+        };
+        
+        // Optimistic update
+        const index = todos.findIndex(t => t.id === todo.id);
+        todos[index] = updatedTodo;
+        renderTodos();
+
+        const response = await fetch(`${API_URL}/${todo.id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(updatedTodo)
+        });
+
+        if (!response.ok) {
+            // Revert
+            todos[index] = todo;
+            renderTodos();
+            throw new Error('Failed to update todo');
+        } else {
+            // Fetch real state from server to ensure times are synced correctly
+            // (Server might have slightly different time or formatted it differently)
+            await fetchTodos();
+        }
+    } catch (error) {
+        console.error('Error:', error);
+    }
+}
+
+async function deleteTodo(id) {
+    showDeleteModal(id);
+}
+
+// Drag and Drop Logic
+let draggedItem = null;
+
+function handleDragStart(e) {
+    draggedItem = this;
+    setTimeout(() => this.classList.add('dragging'), 0);
+    e.dataTransfer.effectAllowed = 'move';
+}
+
+function handleDragEnd(e) {
+    this.classList.remove('dragging');
+    draggedItem = null;
+    saveNewOrder();
+}
+
+function handleDragOver(e) {
+    e.preventDefault();
+    const pendingList = document.getElementById('pending-list');
+    const afterElement = getDragAfterElement(pendingList, e.clientY);
+    const draggable = document.querySelector('.dragging');
+    if (!draggable) return;
+
+    if (afterElement == null) {
+        pendingList.appendChild(draggable);
+    } else {
+        pendingList.insertBefore(draggable, afterElement);
+    }
+}
+
+function getDragAfterElement(container, y) {
+    const draggableElements = [...container.querySelectorAll('.todo-item:not(.dragging)')];
+
+    return draggableElements.reduce((closest, child) => {
+        const box = child.getBoundingClientRect();
+        const offset = y - box.top - box.height / 2;
+        if (offset < 0 && offset > closest.offset) {
+            return { offset: offset, element: child };
+        } else {
+            return closest;
+        }
+    }, { offset: Number.NEGATIVE_INFINITY }).element;
+}
+
+async function saveNewOrder() {
+    const pendingList = document.getElementById('pending-list');
+    const newOrderIds = [...pendingList.querySelectorAll('.todo-item')].map(item => item.dataset.id);
+    
+    try {
+        await fetch('/api/reorder', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(newOrderIds)
+        });
+    } catch (error) {
+        console.error('Error saving order:', error);
+    }
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
