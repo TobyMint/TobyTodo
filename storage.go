@@ -96,6 +96,41 @@ func (s *Storage) Add(todo Todo) error {
 	return s.Save()
 }
 
+func (s *Storage) GetCompletedTodosByPeriod(period string) []Todo {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	var filtered []Todo
+	now := time.Now()
+	// Normalize to start of day
+	todayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+
+	var startTime time.Time
+
+	switch period {
+	case "today":
+		startTime = todayStart
+	case "week":
+		// Week starts on Monday
+		offset := int(now.Weekday())
+		if offset == 0 {
+			offset = 7
+		}
+		startTime = todayStart.AddDate(0, 0, -(offset - 1))
+	case "month":
+		startTime = time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
+	default:
+		return []Todo{}
+	}
+
+	for _, t := range s.Todos {
+		if t.Completed && !t.CompletedAt.IsZero() && (t.CompletedAt.After(startTime) || t.CompletedAt.Equal(startTime)) {
+			filtered = append(filtered, t)
+		}
+	}
+	return filtered
+}
+
 func (s *Storage) Update(updatedTodo Todo) error {
 	s.mu.Lock()
 	for i, t := range s.Todos {

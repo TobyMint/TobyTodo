@@ -22,6 +22,12 @@
             </button>
         </div>
         
+        <div class="summary-actions">
+            <button class="btn btn-summary" onclick="getSummary('today')">✨ Summary Today</button>
+            <button class="btn btn-summary" onclick="getSummary('week')">📅 Summary Week</button>
+            <button class="btn btn-summary" onclick="getSummary('month')">📊 Summary Month</button>
+        </div>
+
         <div class="lists-container">
             <div class="section">
                 <h2 class="section-title">Pending <span id="pending-count">0</span></h2>
@@ -47,6 +53,17 @@
             <div class="modal-actions">
                 <button id="cancel-delete" class="btn btn-secondary">Cancel</button>
                 <button id="confirm-delete" class="btn btn-danger">Delete</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Summary Modal -->
+    <div id="summary-modal" class="modal">
+        <div class="modal-content modal-large">
+            <h3>AI Summary</h3>
+            <div id="summary-content" class="summary-text">Loading...</div>
+            <div class="modal-actions">
+                <button class="btn btn-primary" onclick="closeSummaryModal()">Close</button>
             </div>
         </div>
     </div>

@@ -186,8 +186,12 @@ function setupEventListeners() {
     
     // Close modal if clicked outside
     window.addEventListener('click', (e) => {
-        if (e.target === modal) {
-            hideDeleteModal();
+        if (e.target.classList.contains('modal')) {
+            e.target.classList.remove('show');
+            // Reset delete state if it was the delete modal
+            if (e.target.id === 'confirm-modal') {
+                todoIdToDelete = null;
+            }
         }
     });
 }
@@ -201,6 +205,34 @@ function showDeleteModal(id) {
 function hideDeleteModal() {
     todoIdToDelete = null;
     const modal = document.getElementById('confirm-modal');
+    modal.classList.remove('show');
+}
+
+// Summary Functions
+async function getSummary(period) {
+    const modal = document.getElementById('summary-modal');
+    const contentDiv = document.getElementById('summary-content');
+    
+    modal.classList.add('show');
+    contentDiv.textContent = 'Generating summary with AI... Please wait...';
+
+    try {
+        const response = await fetch(`/api/summary?period=${period}`);
+        const data = await response.json();
+        
+        if (data.summary) {
+            contentDiv.textContent = data.summary;
+        } else {
+            contentDiv.textContent = 'Failed to generate summary.';
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        contentDiv.textContent = 'Error fetching summary. Please try again.';
+    }
+}
+
+function closeSummaryModal() {
+    const modal = document.getElementById('summary-modal');
     modal.classList.remove('show');
 }
 

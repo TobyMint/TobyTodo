@@ -10,6 +10,7 @@ func main() {
 	http.HandleFunc("/api/todos", HandleTodos)
 	http.HandleFunc("/api/todos/", HandleTodoItem)
 	http.HandleFunc("/api/reorder", HandleReorder)
+	http.HandleFunc("/api/summary", SummaryHandler)
 
 	// Static Files
 	fs := http.FileServer(http.Dir("./static"))
