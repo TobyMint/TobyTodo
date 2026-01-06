@@ -154,9 +154,7 @@ function createTodoElement(todo) {
 
     li.querySelector('.content').addEventListener('click', (e) => {
         e.stopPropagation();
-        if (!todo.completed) {
-            showEditModal(todo);
-        }
+        showEditModal(todo);
     });
 
     li.querySelector('.checkbox').addEventListener('click', (e) => {
