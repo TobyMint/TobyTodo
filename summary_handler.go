@@ -73,12 +73,15 @@ func SummaryHandler(w http.ResponseWriter, r *http.Request) {
 	)
 	ctx := context.Background()
 
-	prompt := fmt.Sprintf(`You are a helpful productivity assistant. 
-Below is a list of tasks completed by the user during the period: %s.
-Please provide a concise, encouraging, and professional summary of their achievements. 
-Group similar tasks if possible and highlight key accomplishments.
+	prompt := fmt.Sprintf(`你是一个专业的生产力助手。
+请对用户在以下时间段完成的任务进行总结： %s。
+要求：
+1. 使用中文回答。
+2. 语言风格要专业、鼓励且简洁。
+3. 使用 Markdown 格式（例如使用加粗、列表、小标题等）。
+4. 归纳相似的任务，并突出关键成就。
 
-Tasks:
+任务列表：
 %s`, period, taskList.String())
 
 	req := model.CreateChatCompletionRequest{

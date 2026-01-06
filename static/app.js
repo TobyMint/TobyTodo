@@ -152,6 +152,13 @@ function createTodoElement(todo) {
         </button>
     `;
 
+    li.querySelector('.content').addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (!todo.completed) {
+            showEditModal(todo);
+        }
+    });
+
     li.querySelector('.checkbox').addEventListener('click', (e) => {
         e.stopPropagation(); // Prevent drag triggering if any
         toggleTodo(todo);
@@ -183,6 +190,18 @@ function setupEventListeners() {
 
     cancelBtn.addEventListener('click', hideDeleteModal);
     confirmBtn.addEventListener('click', confirmDelete);
+
+    // Edit Modal Event Listeners
+    const editModal = document.getElementById('edit-modal');
+    const cancelEditBtn = document.getElementById('cancel-edit');
+    const saveEditBtn = document.getElementById('save-edit');
+    const editInput = document.getElementById('edit-input');
+
+    cancelEditBtn.addEventListener('click', hideEditModal);
+    saveEditBtn.addEventListener('click', saveEdit);
+    editInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') saveEdit();
+    });
     
     // Close modal if clicked outside
     window.addEventListener('click', (e) => {
@@ -192,8 +211,66 @@ function setupEventListeners() {
             if (e.target.id === 'confirm-modal') {
                 todoIdToDelete = null;
             }
+            // Reset edit state if it was the edit modal
+            if (e.target.id === 'edit-modal') {
+                currentEditTodo = null;
+            }
         }
     });
+}
+
+// Edit Logic
+let currentEditTodo = null;
+
+function showEditModal(todo) {
+    currentEditTodo = todo;
+    const modal = document.getElementById('edit-modal');
+    const input = document.getElementById('edit-input');
+    input.value = todo.content;
+    modal.classList.add('show');
+    input.focus();
+}
+
+function hideEditModal() {
+    currentEditTodo = null;
+    const modal = document.getElementById('edit-modal');
+    modal.classList.remove('show');
+}
+
+async function saveEdit() {
+    if (!currentEditTodo) return;
+    
+    const input = document.getElementById('edit-input');
+    const newContent = input.value.trim();
+    
+    if (!newContent || newContent === currentEditTodo.content) {
+        hideEditModal();
+        return;
+    }
+
+    const updatedTodo = { ...currentEditTodo, content: newContent };
+    
+    // Optimistic update
+    const index = todos.findIndex(t => t.id === currentEditTodo.id);
+    if (index !== -1) {
+        todos[index] = updatedTodo;
+        renderTodos();
+    }
+    
+    hideEditModal();
+
+    try {
+        const response = await fetch(`${API_URL}/${updatedTodo.id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(updatedTodo)
+        });
+
+        if (!response.ok) throw new Error('Failed to update todo');
+    } catch (error) {
+        console.error('Error:', error);
+        await fetchTodos();
+    }
 }
 
 function showDeleteModal(id) {
@@ -221,7 +298,7 @@ async function getSummary(period) {
         const data = await response.json();
         
         if (data.summary) {
-            contentDiv.textContent = data.summary;
+            contentDiv.innerHTML = marked.parse(data.summary);
         } else {
             contentDiv.textContent = 'Failed to generate summary.';
         }

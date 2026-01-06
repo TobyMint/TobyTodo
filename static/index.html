@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TobyToDo</title>
     <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 </head>
 <body>
     <div class="container">
@@ -53,6 +54,18 @@
             <div class="modal-actions">
                 <button id="cancel-delete" class="btn btn-secondary">Cancel</button>
                 <button id="confirm-delete" class="btn btn-danger">Delete</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Modal -->
+    <div id="edit-modal" class="modal">
+        <div class="modal-content">
+            <h3>Edit Task</h3>
+            <input type="text" id="edit-input" class="edit-input" autocomplete="off">
+            <div class="modal-actions">
+                <button id="cancel-edit" class="btn btn-secondary">Cancel</button>
+                <button id="save-edit" class="btn btn-primary">Save</button>
             </div>
         </div>
     </div>

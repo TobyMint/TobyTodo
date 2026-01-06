@@ -340,6 +340,23 @@ button#add-btn:hover {
     margin-bottom: 25px;
 }
 
+.edit-input {
+    width: 100%;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: var(--text-primary);
+    padding: 12px;
+    border-radius: 8px;
+    font-size: 1rem;
+    margin-bottom: 25px;
+    outline: none;
+    transition: border-color 0.3s;
+}
+
+.edit-input:focus {
+    border-color: var(--primary-color);
+}
+
 .summary-text {
     text-align: left;
     margin-bottom: 25px;
@@ -352,6 +369,27 @@ button#add-btn:hover {
     background: rgba(0,0,0,0.2);
     padding: 15px;
     border-radius: 10px;
+}
+
+.summary-text h1, 
+.summary-text h2, 
+.summary-text h3 {
+    color: var(--text-primary);
+    margin-top: 15px;
+    margin-bottom: 10px;
+}
+
+.summary-text ul {
+    padding-left: 20px;
+    margin-bottom: 10px;
+}
+
+.summary-text li {
+    margin-bottom: 5px;
+}
+
+.summary-text strong {
+    color: var(--text-primary);
 }
 
 .modal-actions {
