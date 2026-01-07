@@ -2,12 +2,12 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
 	"strings"
 
+	"github.com/gin-gonic/gin"
 	"github.com/volcengine/volcengine-go-sdk/service/arkruntime"
 	"github.com/volcengine/volcengine-go-sdk/service/arkruntime/model"
 )
@@ -32,32 +32,22 @@ func getAPIKey() string {
 	return os.Getenv("ARK_API_KEY")
 }
 
-func SummaryHandler(w http.ResponseWriter, r *http.Request) {
-	enableCors(&w)
-	if r.Method == "OPTIONS" {
-		return
-	}
-
-	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	period := r.URL.Query().Get("period")
+func GetSummary(c *gin.Context) {
+	period := c.Query("period")
 	if period == "" {
-		http.Error(w, "Missing period parameter", http.StatusBadRequest)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing period parameter"})
 		return
 	}
 
-	store, err := getUserStorage(r)
+	store, err := getUserStorage(c)
 	if err != nil {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 		return
 	}
 
 	todos := store.GetCompletedTodosByPeriod(period)
 	if len(todos) == 0 {
-		json.NewEncoder(w).Encode(SummaryResponse{Summary: "No completed tasks found for this period."})
+		c.JSON(http.StatusOK, SummaryResponse{Summary: "No completed tasks found for this period."})
 		return
 	}
 
@@ -69,7 +59,7 @@ func SummaryHandler(w http.ResponseWriter, r *http.Request) {
 
 	apiKey := getAPIKey()
 	if apiKey == "" {
-		http.Error(w, "API Key not found. Please check .env.yaml", http.StatusInternalServerError)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "API Key not found. Please check .env.yaml"})
 		return
 	}
 
@@ -109,12 +99,20 @@ func SummaryHandler(w http.ResponseWriter, r *http.Request) {
 
 	resp, err := client.CreateChatCompletion(ctx, req)
 	if err != nil {
-		// Log error for debugging
-		fmt.Printf("AI Error: %v\n", err)
-		http.Error(w, fmt.Sprintf("AI Service Error: %v", err), http.StatusInternalServerError)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("AI Service Error: %v", err)})
 		return
 	}
 
-	summary := *resp.Choices[0].Message.Content.StringValue
-	json.NewEncoder(w).Encode(SummaryResponse{Summary: summary})
+	if len(resp.Choices) > 0 && resp.Choices[0].Message.Content != nil {
+		if resp.Choices[0].Message.Content.StringValue != nil {
+			c.JSON(http.StatusOK, SummaryResponse{Summary: *resp.Choices[0].Message.Content.StringValue})
+			return
+		}
+		if len(resp.Choices[0].Message.Content.ListValue) > 0 {
+			c.JSON(http.StatusOK, SummaryResponse{Summary: resp.Choices[0].Message.Content.ListValue[0].Text})
+			return
+		}
+	}
+
+	c.JSON(http.StatusInternalServerError, gin.H{"error": "No response from AI"})
 }

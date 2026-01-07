@@ -3,6 +3,8 @@ package main
 import (
 	"log"
 	"net/http"
+
+	"github.com/gin-gonic/gin"
 )
 
 var (
@@ -11,30 +13,63 @@ var (
 	storageManager *StorageManager
 )
 
+func CORSMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
+		c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
+		c.Writer.Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
+
+		if c.Request.Method == "OPTIONS" {
+			c.AbortWithStatus(http.StatusNoContent)
+			return
+		}
+
+		c.Next()
+	}
+}
+
 func main() {
 	// Initialize Managers
 	userManager = NewUserManager()
 	sessionManager = NewSessionManager()
 	storageManager = NewStorageManager()
 
-	// Auth Endpoints
-	http.HandleFunc("/api/login", LoginHandler)
-	http.HandleFunc("/api/register", RegisterHandler)
-	http.HandleFunc("/api/logout", LogoutHandler)
+	r := gin.Default()
+	r.Use(CORSMiddleware())
 
-	// API Endpoints (Protected)
-	http.Handle("/api/todos", AuthMiddleware(http.HandlerFunc(HandleTodos)))
-	http.Handle("/api/todos/", AuthMiddleware(http.HandlerFunc(HandleTodoItem)))
-	http.Handle("/api/reorder", AuthMiddleware(http.HandlerFunc(HandleReorder)))
-	http.Handle("/api/summary", AuthMiddleware(http.HandlerFunc(SummaryHandler)))
+	// Public Static Files
+	r.StaticFile("/login.html", "./static/login.html")
+	r.StaticFile("/register.html", "./static/register.html")
+	r.StaticFile("/style.css", "./static/style.css")
+	r.StaticFile("/app.js", "./static/app.js")
 
-	// Static Files (Protected, except login)
-	// We need a custom handler for static files to allow login.html
-	fs := http.FileServer(http.Dir("./static"))
-	http.Handle("/", AuthMiddleware(fs))
+	// Public API
+	r.POST("/api/login", HandleLogin)
+	r.POST("/api/register", HandleRegister)
+	r.Any("/api/logout", HandleLogout) // Logout can be GET or POST
+
+	// Protected Routes
+	authorized := r.Group("/")
+	authorized.Use(AuthMiddleware())
+	{
+		// Static Home
+		authorized.StaticFile("/", "./static/index.html")
+		authorized.StaticFile("/index.html", "./static/index.html")
+
+		// API
+		api := authorized.Group("/api")
+		{
+			api.GET("/todos", GetTodos)
+			api.POST("/todos", CreateTodo)
+			api.PUT("/todos/:id", UpdateTodo)
+			api.DELETE("/todos/:id", DeleteTodo)
+			api.POST("/reorder", ReorderTodos)
+			api.GET("/summary", GetSummary)
+		}
+	}
 
 	log.Println("Server starting on :8080...")
-	if err := http.ListenAndServe(":8080", nil); err != nil {
+	if err := r.Run(":8080"); err != nil {
 		log.Fatal(err)
 	}
 }

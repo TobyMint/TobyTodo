@@ -1,14 +1,14 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
 	"os"
+	"strings"
 	"sync"
-	"time"
 
+	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -16,6 +16,7 @@ import (
 const (
 	UsersFile  = "data/users.json"
 	CookieName = "session_token"
+	UserKey    = "user"
 )
 
 type User struct {
@@ -131,148 +132,94 @@ func (sm *SessionManager) DeleteSession(token string) {
 	delete(sm.Sessions, token)
 }
 
-// Context Key
-type contextKey string
-
-const UserContextKey contextKey = "user"
-
-// isPublicPath checks if the path is accessible without authentication
-func isPublicPath(path string) bool {
-	publicPaths := map[string]bool{
-		"/login.html":    true,
-		"/register.html": true,
-		"/style.css":     true,
-		"/app.js":        true,
-		"/api/login":     true,
-		"/api/register":  true,
-	}
-	return publicPaths[path]
-}
-
 // Middleware
-func AuthMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		c, err := r.Cookie(CookieName)
+func AuthMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		token, err := c.Cookie(CookieName)
 		if err != nil {
-			if isPublicPath(r.URL.Path) {
-				next.ServeHTTP(w, r)
-				return
+			if strings.HasPrefix(c.Request.URL.Path, "/api/") {
+				c.AbortWithStatus(http.StatusUnauthorized)
+			} else {
+				c.Redirect(http.StatusFound, "/login.html")
+				c.Abort()
 			}
-			http.Redirect(w, r, "/login.html", http.StatusFound)
 			return
 		}
 
-		username, ok := sessionManager.GetUsername(c.Value)
+		username, ok := sessionManager.GetUsername(token)
 		if !ok {
 			// Cookie is invalid (e.g. server restarted), clear it
-			http.SetCookie(w, &http.Cookie{
-				Name:    CookieName,
-				Value:   "",
-				Path:    "/",
-				Expires: time.Unix(0, 0),
-				MaxAge:  -1,
-			})
+			c.SetCookie(CookieName, "", -1, "/", "", false, false)
 
-			if isPublicPath(r.URL.Path) {
-				next.ServeHTTP(w, r)
-				return
+			if strings.HasPrefix(c.Request.URL.Path, "/api/") {
+				c.AbortWithStatus(http.StatusUnauthorized)
+			} else {
+				c.Redirect(http.StatusFound, "/login.html")
+				c.Abort()
 			}
-			http.Redirect(w, r, "/login.html", http.StatusFound)
 			return
 		}
 
 		// Refresh session cookie
-		http.SetCookie(w, &http.Cookie{
-			Name:    CookieName,
-			Value:   c.Value,
-			Expires: time.Now().Add(24 * time.Hour),
-			Path:    "/",
-		})
+		c.SetCookie(CookieName, token, 3600*24, "/", "", false, false)
 
-		ctx := context.WithValue(r.Context(), UserContextKey, username)
-		next.ServeHTTP(w, r.WithContext(ctx))
-	})
+		c.Set(UserKey, username)
+		c.Next()
+	}
 }
 
 // Auth Handlers
-func LoginHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
+func HandleLogin(c *gin.Context) {
 	var creds struct {
 		Username string `json:"username"`
 		Password string `json:"password"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&creds); err != nil {
-		http.Error(w, "Invalid request", http.StatusBadRequest)
+	if err := c.ShouldBindJSON(&creds); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request"})
 		return
 	}
 
 	if err := userManager.Login(creds.Username, creds.Password); err != nil {
-		http.Error(w, "Invalid credentials", http.StatusUnauthorized)
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid credentials"})
 		return
 	}
 
 	token := sessionManager.CreateSession(creds.Username)
-	http.SetCookie(w, &http.Cookie{
-		Name:    CookieName,
-		Value:   token,
-		Expires: time.Now().Add(24 * time.Hour),
-		Path:    "/",
-	})
-
-	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+	c.SetCookie(CookieName, token, 3600*24, "/", "", false, false)
+	c.JSON(http.StatusOK, gin.H{"status": "ok"})
 }
 
-func RegisterHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
+func HandleRegister(c *gin.Context) {
 	var creds struct {
 		Username string `json:"username"`
 		Password string `json:"password"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&creds); err != nil {
-		http.Error(w, "Invalid request", http.StatusBadRequest)
+	if err := c.ShouldBindJSON(&creds); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request"})
 		return
 	}
 
 	if creds.Username == "" || creds.Password == "" {
-		http.Error(w, "Username and password required", http.StatusBadRequest)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Username and password required"})
 		return
 	}
 
 	if err := userManager.Register(creds.Username, creds.Password); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
 	// Auto login
 	token := sessionManager.CreateSession(creds.Username)
-	http.SetCookie(w, &http.Cookie{
-		Name:    CookieName,
-		Value:   token,
-		Expires: time.Now().Add(24 * time.Hour),
-		Path:    "/",
-	})
-
-	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+	c.SetCookie(CookieName, token, 3600*24, "/", "", false, false)
+	c.JSON(http.StatusOK, gin.H{"status": "ok"})
 }
 
-func LogoutHandler(w http.ResponseWriter, r *http.Request) {
-	c, err := r.Cookie(CookieName)
+func HandleLogout(c *gin.Context) {
+	token, err := c.Cookie(CookieName)
 	if err == nil {
-		sessionManager.DeleteSession(c.Value)
+		sessionManager.DeleteSession(token)
 	}
-	http.SetCookie(w, &http.Cookie{
-		Name:   CookieName,
-		Value:  "",
-		MaxAge: -1,
-		Path:   "/",
-	})
-	http.Redirect(w, r, "/login.html", http.StatusFound)
+	c.SetCookie(CookieName, "", -1, "/", "", false, false)
+	c.Redirect(http.StatusFound, "/login.html")
 }

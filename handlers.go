@@ -1,129 +1,99 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
-	"strings"
 	"time"
+
+	"github.com/gin-gonic/gin"
 )
 
-func getUserStorage(r *http.Request) (*Storage, error) {
-	username, ok := r.Context().Value(UserContextKey).(string)
-	if !ok || username == "" {
+func getUserStorage(c *gin.Context) (*Storage, error) {
+	username := c.GetString(UserKey)
+	if username == "" {
 		return nil, fmt.Errorf("unauthorized")
 	}
 	return storageManager.GetStorage(username)
 }
 
-func enableCors(w *http.ResponseWriter) {
-	(*w).Header().Set("Access-Control-Allow-Origin", "*")
-	(*w).Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
-	(*w).Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
+func GetTodos(c *gin.Context) {
+	store, err := getUserStorage(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+	todos := store.GetAll()
+	c.JSON(http.StatusOK, todos)
 }
 
-func HandleTodos(w http.ResponseWriter, r *http.Request) {
-	enableCors(&w)
-	if r.Method == "OPTIONS" {
-		return
-	}
-
-	store, err := getUserStorage(r)
+func CreateTodo(c *gin.Context) {
+	store, err := getUserStorage(c)
 	if err != nil {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 		return
 	}
 
-	switch r.Method {
-	case "GET":
-		todos := store.GetAll()
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(todos)
-	case "POST":
-		var todo Todo
-		if err := json.NewDecoder(r.Body).Decode(&todo); err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-		if todo.ID == "" {
-			todo.ID = fmt.Sprintf("%d", time.Now().UnixNano())
-		}
-		if todo.CreatedAt.IsZero() {
-			todo.CreatedAt = time.Now()
-		}
-		store.Add(todo)
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(todo)
-	default:
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	var todo Todo
+	if err := c.ShouldBindJSON(&todo); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
 	}
+
+	if todo.ID == "" {
+		todo.ID = fmt.Sprintf("%d", time.Now().UnixNano())
+	}
+	if todo.CreatedAt.IsZero() {
+		todo.CreatedAt = time.Now()
+	}
+	store.Add(todo)
+	c.JSON(http.StatusOK, todo)
 }
 
-func HandleTodoItem(w http.ResponseWriter, r *http.Request) {
-	enableCors(&w)
-	if r.Method == "OPTIONS" {
-		return
-	}
-
-	store, err := getUserStorage(r)
+func UpdateTodo(c *gin.Context) {
+	store, err := getUserStorage(c)
 	if err != nil {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 		return
 	}
 
-	// Extract ID from URL path
-	// Path is like /api/todos/{id}
-	parts := strings.Split(r.URL.Path, "/")
-	if len(parts) < 4 {
-		http.Error(w, "Invalid URL", http.StatusBadRequest)
+	id := c.Param("id")
+	var todo Todo
+	if err := c.ShouldBindJSON(&todo); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	id := parts[3]
-
-	switch r.Method {
-	case "PUT":
-		var todo Todo
-		if err := json.NewDecoder(r.Body).Decode(&todo); err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-		if todo.ID != id {
-			http.Error(w, "ID mismatch", http.StatusBadRequest)
-			return
-		}
-		store.Update(todo)
-		w.WriteHeader(http.StatusOK)
-	case "DELETE":
-		store.Delete(id)
-		w.WriteHeader(http.StatusOK)
-	default:
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	if todo.ID != id {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ID mismatch"})
+		return
 	}
+	store.Update(todo)
+	c.Status(http.StatusOK)
 }
 
-func HandleReorder(w http.ResponseWriter, r *http.Request) {
-	enableCors(&w)
-	if r.Method == "OPTIONS" {
-		return
-	}
-
-	store, err := getUserStorage(r)
+func DeleteTodo(c *gin.Context) {
+	store, err := getUserStorage(c)
 	if err != nil {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 		return
 	}
+	id := c.Param("id")
+	store.Delete(id)
+	c.Status(http.StatusOK)
+}
 
-	if r.Method != "POST" {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+func ReorderTodos(c *gin.Context) {
+	store, err := getUserStorage(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 		return
 	}
 
 	var ids []string
-	if err := json.NewDecoder(r.Body).Decode(&ids); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+	if err := c.ShouldBindJSON(&ids); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
 	store.Reorder(ids)
-	w.WriteHeader(http.StatusOK)
+	c.Status(http.StatusOK)
 }
