@@ -285,9 +285,11 @@ function hideDeleteModal() {
 
 // Summary Functions
 let currentSummaryPeriod = null;
+let currentSummaryText = '';
 
 function getSummary(period) {
     currentSummaryPeriod = period;
+    currentSummaryText = '';
     const modal = document.getElementById('summary-modal');
     const contentDiv = document.getElementById('summary-content');
     const actionsDiv = modal.querySelector('.modal-actions');
@@ -330,17 +332,54 @@ async function startSummaryGeneration() {
         const data = await response.json();
         
         if (data.summary) {
+            currentSummaryText = data.summary;
             contentDiv.innerHTML = marked.parse(data.summary);
         } else {
+            currentSummaryText = '';
             contentDiv.textContent = '未能生成总结，请重试。';
         }
     } catch (error) {
         console.error('Error:', error);
+        currentSummaryText = '';
         contentDiv.textContent = '获取总结失败，请检查网络连接。';
     } finally {
         actionsDiv.innerHTML = `
+            <button class="btn btn-secondary" onclick="copySummaryToClipboard()">复制总结</button>
             <button class="btn btn-primary" onclick="closeSummaryModal()">关闭</button>
         `;
+    }
+}
+
+function copySummaryToClipboard() {
+    if (!currentSummaryText) return;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(currentSummaryText).catch(() => {
+            const textarea = document.createElement('textarea');
+            textarea.value = currentSummaryText;
+            textarea.style.position = 'fixed';
+            textarea.style.opacity = '0';
+            document.body.appendChild(textarea);
+            textarea.focus();
+            textarea.select();
+            try {
+                document.execCommand('copy');
+            } finally {
+                document.body.removeChild(textarea);
+            }
+        });
+    } else {
+        const textarea = document.createElement('textarea');
+        textarea.value = currentSummaryText;
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.focus();
+        textarea.select();
+        try {
+            document.execCommand('copy');
+        } finally {
+            document.body.removeChild(textarea);
+        }
     }
 }
 
