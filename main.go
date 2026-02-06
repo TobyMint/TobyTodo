@@ -1,6 +1,8 @@
 package main
 
 import (
+	"flag"
+	"fmt"
 	"log"
 	"net/http"
 
@@ -68,8 +70,11 @@ func main() {
 		}
 	}
 
-	log.Println("Server starting on :8080...")
-	if err := r.Run(":8080"); err != nil {
+	port := flag.Int("port", 8080, "server listen port")
+	flag.Parse()
+	addr := fmt.Sprintf(":%d", *port)
+	log.Println("Server starting on", addr)
+	if err := r.Run(addr); err != nil {
 		log.Fatal(err)
 	}
 }
