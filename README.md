@@ -21,8 +21,22 @@
     ```bash
     go run .
     ```
+    默认是 HTTP，监听在 `:8080`。可以通过 `--port` 参数来指定监听的端口。
+
+    如果你想直接启用 HTTPS，可以在启动时加上参数（示例）：
+
+    ```bash
+    go run . --https \
+      --tls-cert /path/to/your/certificate.pem \
+      --tls-key  /path/to/your/private.key
+    ```
+
+    你需要根据你的实际证书文件路径来修改上面的命令：
+    *   `--tls-cert`: 对应你的证书文件（通常是 `.pem` 或 `.crt` 结尾，包含完整的证书链）。例如你的 `xubowen.online_bundle.pem`。
+    *   `--tls-key`: 对应你的私钥文件（通常是 `.key` 结尾）。例如你的 `xubowen.online.key`。
 4.  **使用**：
-    *   打开浏览器访问 `http://localhost:8080`。
+    *   打开浏览器访问 `http://localhost:8080`（HTTP 模式）。
+    *   如果按上面的方式启用了 HTTPS，则访问 `https://localhost:8080` 或你实际绑定的域名。
     *   随便注册个账号就能用了。
 
 ## 目录结构说明

@@ -71,10 +71,33 @@ func main() {
 	}
 
 	port := flag.Int("port", 8080, "server listen port")
+	enableHTTPS := flag.Bool("https", false, "enable HTTPS")
+	tlsCertFile := flag.String("tls-cert", "", "path to TLS certificate file")
+	tlsKeyFile := flag.String("tls-key", "", "path to TLS private key file")
 	flag.Parse()
 	addr := fmt.Sprintf(":%d", *port)
-	log.Println("Server starting on", addr)
-	if err := r.Run(addr); err != nil {
-		log.Fatal(err)
+
+	// Check for inconsistent flags
+	if !*enableHTTPS && (*tlsCertFile != "" || *tlsKeyFile != "") {
+		log.Fatal("HTTPS 未启用 (--https=false)，但指定了证书文件。请添加 --https 参数以启用 HTTPS，或移除证书参数以使用 HTTP。")
+	}
+
+	if *enableHTTPS {
+		if *tlsCertFile == "" || *tlsKeyFile == "" {
+			log.Fatal("HTTPS 已启用，但未指定证书文件 (--tls-cert) 或私钥文件 (--tls-key)")
+		}
+		log.Println("HTTPS server starting on", addr)
+		server := &http.Server{
+			Addr:    addr,
+			Handler: r,
+		}
+		if err := server.ListenAndServeTLS(*tlsCertFile, *tlsKeyFile); err != nil {
+			log.Fatal(err)
+		}
+	} else {
+		log.Println("HTTP server starting on", addr)
+		if err := r.Run(addr); err != nil {
+			log.Fatal(err)
+		}
 	}
 }
