@@ -93,7 +93,7 @@ func GetSummary(c *gin.Context) {
 %s`, period, taskList.String())
 
 	req := model.CreateChatCompletionRequest{
-		Model: "doubao-seed-1-8-251228",
+		Model: "doubao-seed-2-0-mini-260215",
 		Messages: []*model.ChatCompletionMessage{
 			{
 				Role: model.ChatMessageRoleUser,
