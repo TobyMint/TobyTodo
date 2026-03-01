@@ -350,36 +350,68 @@ async function startSummaryGeneration() {
     }
 }
 
-function copySummaryToClipboard() {
-    if (!currentSummaryText) return;
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(currentSummaryText).catch(() => {
-            const textarea = document.createElement('textarea');
-            textarea.value = currentSummaryText;
-            textarea.style.position = 'fixed';
-            textarea.style.opacity = '0';
-            document.body.appendChild(textarea);
-            textarea.focus();
-            textarea.select();
-            try {
-                document.execCommand('copy');
-            } finally {
-                document.body.removeChild(textarea);
+function showToast(message) {
+    const existing = document.getElementById('global-toast');
+    if (existing) {
+        existing.remove();
+    }
+
+    const toast = document.createElement('div');
+    toast.id = 'global-toast';
+    toast.className = 'toast-notification';
+    toast.textContent = message;
+
+    document.body.appendChild(toast);
+
+    requestAnimationFrame(() => {
+        toast.classList.add('show');
+    });
+
+    setTimeout(() => {
+        toast.classList.remove('show');
+        toast.addEventListener('transitionend', () => {
+            if (toast.parentNode) {
+                toast.parentNode.removeChild(toast);
             }
-        });
-    } else {
+        }, { once: true });
+    }, 2000);
+}
+
+async function copySummaryToClipboard() {
+    if (!currentSummaryText) return;
+
+    let success = false;
+    const text = currentSummaryText;
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        try {
+            await navigator.clipboard.writeText(text);
+            success = true;
+        } catch (e) {
+        }
+    }
+
+    if (!success) {
         const textarea = document.createElement('textarea');
-        textarea.value = currentSummaryText;
+        textarea.value = text;
         textarea.style.position = 'fixed';
         textarea.style.opacity = '0';
         document.body.appendChild(textarea);
         textarea.focus();
         textarea.select();
         try {
-            document.execCommand('copy');
+            success = document.execCommand('copy');
+        } catch (e) {
+            success = false;
         } finally {
             document.body.removeChild(textarea);
         }
+    }
+
+    if (success) {
+        showToast('复制成功');
+    } else {
+        showToast('复制失败');
     }
 }
 
