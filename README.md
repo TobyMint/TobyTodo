@@ -34,6 +34,12 @@
     你需要根据你的实际证书文件路径来修改上面的命令：
     *   `--tls-cert`: 对应你的证书文件（通常是 `.pem` 或 `.crt` 结尾，包含完整的证书链）。例如你的 `xubowen.online_bundle.pem`。
     *   `--tls-key`: 对应你的私钥文件（通常是 `.key` 结尾）。例如你的 `xubowen.online.key`。
+
+    **HTTPS 自动重定向（同端口）**：
+    当启用 HTTPS 时，程序会在同一个端口上同时处理 HTTPS 和 HTTP 请求。
+    *   如果用户访问 `https://your-domain:8080`，正常使用 HTTPS 加密连接。
+    *   如果用户访问 `http://your-domain:8080`（明文 HTTP），程序会自动将其重定向到 HTTPS 地址。
+    *   这意味你只需要配置一个端口映射即可同时支持两种协议的访问体验。
 4.  **使用**：
     *   打开浏览器访问 `http://localhost:8080`（HTTP 模式）。
     *   如果按上面的方式启用了 HTTPS，则访问 `https://localhost:8080` 或你实际绑定的域名。
